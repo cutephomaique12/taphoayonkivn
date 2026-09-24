@@ -12,11 +12,19 @@ export async function POST(req: Request) {
   const p = await req.json().catch(() => null);
   if (!p || p.transferType !== "in") return ok();
 
-  const m = String(p.code || p.content || "").toUpperCase().match(/YK[0-9A-F]{10}/);
-  if (!m) return ok();
+  const text = `${p.code || ""} ${p.content || ""}`.toUpperCase();
+  const amount = Number(p.transferAmount);
 
+  const nap = text.match(/NAP[0-9A-F]{8}/);
+  if (nap) {
+    await db.rpc("credit_wallet", { p_nap: nap[0], p_amount: amount, p_tx: String(p.id) });
+    return ok();
+  }
+
+  const m = text.match(/YK[0-9A-F]{10}/);
+  if (!m) return ok();
   const { data: o } = await db.from("orders").select("amount,status").eq("code", m[0]).single();
-  if (o && o.status === "pending" && Number(p.transferAmount) >= o.amount)
+  if (o && o.status === "pending" && amount >= o.amount)
     await db.from("orders").update({ status: "paid", sepay_tx: String(p.id) }).eq("code", m[0]).eq("status", "pending");
   return ok();
 }
