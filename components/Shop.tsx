@@ -1,40 +1,81 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Checkout from "@/components/Checkout";
 
-type P = { id: string; category: string; name: string; price: number; warranty: string | null; description: string | null };
-type Order = { code: string; amount: number; qr: string };
+type P = { id: string; category: string; icon: string; name: string; sub: string | null; badge: string | null; badge_kind: string | null; link: string | null; price: number };
 
+const IC: Record<string, React.ReactNode> = {
+  spark: <path d="M12 3l1.8 5.6L19 10l-5.2 1.4L12 17l-1.8-5.6L5 10l5.2-1.4z" />,
+  chat: <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M9 9h.01M15 9h.01M9 15c.8.8 2 .8 3 0" /></>,
+  brush: <><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /><path d="M2 2l7.5 7.5" /><circle cx="11" cy="11" r="2" /></>,
+  cam: <><rect x="3" y="5" width="14" height="14" rx="2" /><path d="M17 9l4-2v10l-4-2" /></>,
+  ig: <><rect x="4" y="4" width="16" height="16" rx="5" /><circle cx="12" cy="12" r="3.2" /></>,
+  pad: <><rect x="2" y="8" width="20" height="9" rx="4" /><path d="M7 11v3M5.5 12.5h3M16 12h.01M18.5 10.5h.01" /></>,
+  check: <path d="M20 6L9 17l-5-5" />,
+};
 const CATS: [string, string, string][] = [
-  ["ai", "Trợ lý AI", "#7c6fe4"], ["design", "Thiết kế", "#3fb0a4"], ["video", "Chỉnh sửa video", "#e4572e"],
-  ["social", "Mạng xã hội", "#e86bb0"], ["game", "Fix lag game", "#4f8fe4"],
+  ["ai", "Trợ Lý AI", "spark"], ["design", "Thiết Kế", "brush"], ["video", "Chỉnh Sửa Video", "cam"],
+  ["social", "Mạng Xã Hội", "ig"], ["game", "Fix Lag Liên Quân", "pad"],
 ];
-const vnd = (n: number) => n.toLocaleString("vi-VN") + "đ";
+const k = (n: number) => (n === 0 ? "0đ" : n % 1000 === 0 ? n / 1000 + "k" : n.toLocaleString("vi-VN") + "đ");
+const Svg = ({ n }: { n: string }) => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">{IC[n]}</svg>;
 
-export default function Shop({ products }: { products: P[] }) {
+export default function Shop({ products, zalo, group }: { products: P[]; zalo: string; group: string }) {
   const [sel, setSel] = useState<P | null>(null);
-  const [contact, setContact] = useState("");
-  const [order, setOrder] = useState<Order | null>(null);
-  const [delivered, setDelivered] = useState<string | null>(null);
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const close = () => { setSel(null); setOrder(null); setDelivered(null); setErr(""); };
-
-  async function createOrder() {
-    setBusy(true); setErr("");
-    const r = await fetch("/api/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ productId: sel!.id, contact }) });
-    const d = await r.json();
-    setBusy(false);
-    r.ok ? setOrder(d) : setErr(d.error || "Có lỗi xảy ra");
-  }
-
-  useEffect(() => {
-    if (!order || delivered) return;
-    const t = setInterval(async () => {
-      const r = await fetch(`/api/orders/${order.code}`).then((x) => x.json()).catch(() => null);
-      if (r?.status === "completed") setDelivered(r.delivered);
-    }, 3000);
-    return () => clearInterval(t);
+  return (
+    <>
+      {CATS.map(([key, label, ic]) => {
+        const list = products.filter((p) => p.category === key);
+        if (!list.length) return null;
+        const count = key === "game" ? `${list.filter((p) => p.link).length} file` : `${list.length} gói`;
+        return (
+          <section className="shelf" key={key}>
+            <div className="shelf-head">
+              <h2>
+                <span className={`hi ico-${key}`}><Svg n={ic} /></span> {label}
+                {key === "game" && <small style={{ color: "var(--muted2)", fontWeight: 500 }}>— mùa mới nhất</small>}
+              </h2>
+              <span className="count">{count}</span>
+            </div>
+            <div className="row">
+              {list.map((p) => {
+                const gold = p.icon === "check";
+                return (
+                  <div className="card" key={p.id} style={gold ? { borderColor: "rgba(255,193,69,.35)" } : undefined}>
+                    <div className={`icon ico-${key}`} style={gold ? { background: "rgba(255,193,69,.15)", color: "var(--gold)" } : undefined}><Svg n={p.icon} /></div>
+                    <h3>{p.name}{p.sub && <> <small>{p.sub}</small></>}</h3>
+                    {p.link ? (
+                      <a href={p.link} target="_blank" rel="noopener" className={`badge lnk${p.badge_kind === "drive" ? " drive" : ""}`}>{p.badge}</a>
+                    ) : p.badge ? (
+                      <div className="meta"><span className={`badge${p.badge_kind === "kbh" ? " kbh" : ""}`}>{p.badge}</span></div>
+                    ) : null}
+                    <div className="price">{k(p.price)}</div>
+                    {p.price > 0 && <button className="btn buy" onClick={() => setSel(p)}>Mua ngay</button>}
+                  </div>
+                );
+              })}
+            </div>
+            {key === "social" && (
+              <div className="note-box">
+                <b>Dịch vụ nâng Locket:</b> chỉ cần gửi tên tài khoản là nâng xong ngay, không cần chờ lâu.
+                <div className="chips">
+                  {["Không cần iCloud", "Không đăng nhập tài khoản lạ", "Lên gói chính thức của app", "Không DNS giả"].map((c) => <span key={c} className="chip">{c}</span>)}
+                </div>
+              </div>
+            )}
+            {key === "game" && (
+              <div className="note-box">
+                Link vượt (lấy free) thay đổi liên tục — vào <a href={group} target="_blank" rel="noopener" style={{ color: "var(--gold)", borderBottom: "1px dotted var(--gold)" }}>nhóm Zalo</a> để cập nhật mới nhất ngay khi có, web có thể cập nhật trễ hơn nhóm một chút.<br /><br />
+                <b>Lười vượt link?</b> Nhắn Zalo, admin mua giúp luôn.
+              </div>
+            )}
+          </section>
+        );
+      })}
+      {sel && <Checkout p={sel} zalo={zalo} onClose={() => setSel(null)} />}
+    </>
+  );
+}    return () => clearInterval(t);
   }, [order, delivered]);
 
   return (
